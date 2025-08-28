@@ -26,13 +26,35 @@ class RealAppleWebScraper:
             'Upgrade-Insecure-Requests': '1',
         })
         self.apple_urls = {
-            "main_page": "https://www.apple.com/in/apple-watch/",
-            "compare": "https://www.apple.com/in/apple-watch/compare/",
-            "se": "https://www.apple.com/in/apple-watch-se/",
-            "series_9": "https://www.apple.com/in/apple-watch-series-9/", 
-            "ultra": "https://www.apple.com/in/apple-watch-ultra-2/",
-            "specs": "https://www.apple.com/in/apple-watch/specs/",
-            "health": "https://www.apple.com/in/apple-watch/health/",
+            # Main overview + comparisons
+            "main_page":         "https://www.apple.com/in/apple-watch/",
+            "compare":           "https://www.apple.com/in/apple-watch/compare/",
+
+            # Current models
+            "series_10":         "https://www.apple.com/in/apple-watch-series-10/",
+            "ultra_2":           "https://www.apple.com/in/apple-watch-ultra-2/",
+            "series_9":          "https://www.apple.com/in/apple-watch-series-9/",
+            "se":                "https://www.apple.com/in/apple-watch-se/",
+            "nike":              "https://www.apple.com/in/apple-watch-nike/",
+
+            # Recently discontinued (archived) models
+            "series_8":          "https://www.apple.com/in/apple-watch-series-8/",
+            "ultra":             "https://www.apple.com/in/apple-watch-ultra/",
+            "series_7":          "https://www.apple.com/in/apple-watch-series-7/",
+            "series_6":          "https://www.apple.com/in/apple-watch-series-6/",
+            "se_1st_gen":        "https://www.apple.com/in/apple-watch-se-2020/",
+
+            # Tech specs & features
+            "specs":             "https://www.apple.com/in/apple-watch/specs/",
+            "health":            "https://www.apple.com/in/apple-watch/health/",
+            "fitness":           "https://www.apple.com/in/apple-watch/fitness/",
+            "bands":             "https://www.apple.com/in/apple-watch/bands/",
+            "watchos":           "https://www.apple.com/in/watchos/",
+
+            # Buying & support
+            "shop":              "https://www.apple.com/in/shop/buy-watch",
+            "trade_in":          "https://www.apple.com/in/trade-in/",
+            "support":           "https://support.apple.com/en-in/watch",
         } 
         
         self.cache = {}
