@@ -1,201 +1,137 @@
 """
-Input Classifier and Sentiment Analyzer
-Determines if questions are Apple Watch related and analyzes user sentiment
+Simple Apple Watch Classifier - No Dependencies
+Handles input classification and sentiment analysis
 """
 import re
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass
 
 @dataclass
 class SentimentAnalysis:
-    """Sentiment analysis result"""
-    emotion: str  # frustrated, excited, curious, neutral, etc.
-    intent: str   # question, problem, comparison, buying, etc.
-    urgency: str  # low, medium, high
-    confidence: float  # 0.0 to 1.0
+    """Simple sentiment analysis result"""
+    intent: str = "question"
+    confidence: float = 0.8
+    is_positive: bool = True
 
 class AppleWatchClassifier:
-    """Classifies questions as Apple Watch related and analyzes sentiment"""
+    """Simple, reliable Apple Watch input classifier"""
     
     def __init__(self):
         # Apple Watch related keywords
-        self.apple_watch_keywords = {
-            "direct_mentions": [
-                "apple watch", "applewatch", "iwatch", "watch", "smartwatch"
-            ],
-            "models": [
-                "se", "series 9", "series 8", "series 7", "series 6", 
-                "ultra", "ultra 2", "edition", "sport", "nike"
-            ],
-            "features": [
-                "heart rate", "ecg", "blood oxygen", "sleep tracking", "fitness",
-                "workout", "gps", "cellular", "siri", "apple pay", "activity rings",
-                "fall detection", "crash detection", "always on", "digital crown",
-                "side button", "band", "strap", "charging", "battery"
-            ],
-            "health_fitness": [
-                "health", "fitness", "exercise", "heart", "pulse", "steps",
-                "calories", "workout", "swimming", "running", "cycling"
-            ],
-            "technical": [
-                "setup", "pair", "sync", "connect", "bluetooth", "wifi",
-                "update", "reset", "restart", "problem", "issue", "fix"
-            ]
-        }
+        self.apple_watch_keywords = [
+            "apple watch", "series", "se", "ultra", "watch", "smartwatch",
+            "watchos", "apple", "iwatch", "wearable"
+        ]
         
-        # Sentiment patterns
-        self.emotion_patterns = {
-            "frustrated": [
-                r"\b(frustrated|annoyed|angry|upset|hate|terrible|awful|stupid)\b",
-                r"\b(doesn't work|not working|broken|useless|crap)\b",
-                r"[!]{2,}",  # Multiple exclamation marks
-                r"\b(wtf|damn|seriously|ridiculous)\b"
-            ],
-            "excited": [
-                r"\b(love|awesome|amazing|excited|great|fantastic|perfect)\b",
-                r"\b(can't wait|so cool|incredible)\b",
-                r"[!]+",
-                r"😍|🤩|😊|🔥|💯"
-            ],
-            "curious": [
-                r"\b(curious|wondering|interested|want to know)\b",
-                r"\b(what if|how about|tell me about)\b"
-            ],
-            "confused": [
-                r"\b(confused|don't understand|not sure|unclear)\b",
-                r"\b(help me understand|explain|clarify)\b",
-                r"[?]{2,}"
-            ]
-        }
+        # Budget related keywords
+        self.budget_keywords = [
+            "budget", "price", "cost", "expensive", "cheap", "afford",
+            "rupees", "₹", "money", "worth", "value"
+        ]
         
-        self.intent_patterns = {
-            "buying": [
-                r"\b(buy|purchase|get|order|price|cost|budget|worth|best|recommend)\b"
-            ],
-            "comparing": [
-                r"\b(vs|versus|compare|comparison|difference|which|better)\b"
-            ],
-            "troubleshooting": [
-                r"\b(problem|issue|fix|broken|not working|error|trouble)\b"
-            ],
-            "learning": [
-                r"\b(what|how|why|explain|tell me|learn|understand)\b"
-            ],
-            "setup": [
-                r"\b(setup|set up|pair|connect|sync|install|configure)\b"
-            ]
-        }
+        # Comparison keywords
+        self.comparison_keywords = [
+            "compare", "vs", "versus", "difference", "better", "best",
+            "which", "should i", "recommend", "suggest"
+        ]
+        
+        # Technical support keywords
+        self.support_keywords = [
+            "problem", "issue", "not working", "broken", "fix", "help",
+            "charge", "battery", "connect", "pair", "setup"
+        ]
     
-    def classify_input(self, user_input: str) -> Dict:
-        """Classify if input is Apple Watch related"""
-        if not user_input or len(user_input.strip()) < 2:
-            return {"is_apple_watch": False, "confidence": 0.0, "reason": "Empty input"}
+    def classify_input(self, text: str) -> Dict[str, any]:
+        """Classify user input"""
+        text_lower = text.lower()
         
-        input_lower = user_input.lower().strip()
+        # Check if it's Apple Watch related
+        is_apple_watch = any(keyword in text_lower for keyword in self.apple_watch_keywords)
         
-        # Check for Apple Watch keywords
-        score = 0
+        # Determine category
+        category = "general"
+        if any(keyword in text_lower for keyword in self.budget_keywords):
+            category = "budget"
+        elif any(keyword in text_lower for keyword in self.comparison_keywords):
+            category = "comparison"
+        elif any(keyword in text_lower for keyword in self.support_keywords):
+            category = "support"
         
-        # Direct mentions (high weight)
-        for keyword in self.apple_watch_keywords["direct_mentions"]:
-            if keyword in input_lower:
-                score += 1.0
-                break
-        
-        # Model mentions
-        for model in self.apple_watch_keywords["models"]:
-            if model in input_lower:
-                score += 0.7
-                break
-        
-        # Feature mentions
-        for feature in self.apple_watch_keywords["features"]:
-            if feature in input_lower:
-                score += 0.5
-                break
-        
-        # Health/fitness mentions
-        for term in self.apple_watch_keywords["health_fitness"]:
-            if term in input_lower:
-                score += 0.3
-                break
-        
-        # Technical mentions
-        for term in self.apple_watch_keywords["technical"]:
-            if term in input_lower:
-                score += 0.2
-                break
-        
-        # Determine if Apple Watch related
-        is_apple_watch = score >= 0.5
-        confidence = min(score, 1.0)
+        # Extract budget if present
+        budget = self._extract_budget(text)
         
         return {
             "is_apple_watch": is_apple_watch,
-            "confidence": confidence,
-            "reason": f"Keyword score: {score:.1f}"
+            "category": category,
+            "budget": budget,
+            "confidence": 0.9 if is_apple_watch else 0.3
         }
     
-    def analyze_sentiment(self, user_input: str) -> SentimentAnalysis:
-        """Analyze sentiment of user input"""
-        if not user_input:
-            return SentimentAnalysis("neutral", "general", "low", 0.0)
+    def analyze_sentiment(self, text: str) -> SentimentAnalysis:
+        """Simple sentiment analysis"""
+        text_lower = text.lower()
         
-        input_lower = user_input.lower().strip()
-        
-        # Detect emotion
-        emotion = "neutral"
-        for emotion_type, patterns in self.emotion_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, input_lower):
-                    emotion = emotion_type
-                    break
-            if emotion != "neutral":
-                break
-        
-        # Detect intent
-        intent = "general"
-        for intent_type, patterns in self.intent_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, input_lower):
-                    intent = intent_type
-                    break
-            if intent != "general":
-                break
-        
-        # Special cases for intent
-        if any(word in input_lower for word in ["hi", "hello", "hey"]):
+        # Determine intent
+        if any(word in text_lower for word in ["hello", "hi", "hey", "good morning", "good afternoon"]):
             intent = "greeting"
-        elif any(word in input_lower for word in ["thank", "thanks"]):
+        elif any(word in text_lower for word in ["thank", "thanks", "appreciate", "helpful"]):
             intent = "gratitude"
+        elif "?" in text or any(word in text_lower for word in ["what", "how", "when", "where", "why", "which"]):
+            intent = "question"
+        elif any(word in text_lower for word in ["help", "problem", "issue", "not working"]):
+            intent = "support"
+        else:
+            intent = "statement"
         
-        # Detect urgency
-        urgency = "low"
-        if any(word in input_lower for word in ["urgent", "emergency", "asap", "now", "immediately"]):
-            urgency = "high"
-        elif any(word in input_lower for word in ["problem", "broken", "not working", "help"]):
-            urgency = "medium"
+        # Determine positivity (simple approach)
+        positive_words = ["good", "great", "excellent", "love", "like", "best", "amazing", "perfect"]
+        negative_words = ["bad", "terrible", "hate", "worst", "problem", "issue", "broken", "not working"]
         
-        # Calculate confidence
-        confidence = 0.7  # Base confidence
-        if emotion != "neutral":
-            confidence += 0.1
-        if intent != "general":
-            confidence += 0.1
-        if "?" in user_input:
-            confidence += 0.1
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
         
-        return SentimentAnalysis(emotion, intent, urgency, min(confidence, 1.0))
+        is_positive = positive_count >= negative_count
+        confidence = 0.8
+        
+        return SentimentAnalysis(
+            intent=intent,
+            confidence=confidence,
+            is_positive=is_positive
+        )
     
-    def is_casual_greeting(self, user_input: str) -> bool:
-        """Check if input is a casual greeting"""
-        greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
-        return any(greeting in user_input.lower() for greeting in greetings)
-    
-    def is_gratitude(self, user_input: str) -> bool:
-        """Check if input expresses gratitude"""
-        gratitude_words = ["thank", "thanks", "thx", "appreciate", "grateful"]
-        return any(word in user_input.lower() for word in gratitude_words)
-
-# Global classifier instance
-classifier = AppleWatchClassifier()
+    def _extract_budget(self, text: str) -> Optional[int]:
+        """Extract budget from text"""
+        patterns = [
+            r'₹\s*(\d+)k',           # ₹30k
+            r'₹\s*(\d+),?(\d+)',     # ₹30,000
+            r'(\d+)k\s*budget',      # 30k budget
+            r'(\d{4,6})\s*rupees',   # 30000 rupees
+            r'(\d{4,6})',            # 30000
+        ]
+        
+        text_clean = text.lower().replace(',', '').replace(' ', '')
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, text_clean)
+            if matches:
+                try:
+                    if isinstance(matches[0], tuple):
+                        if len(matches[0]) == 2 and matches[0][1]:
+                            budget = int(matches[0][0] + matches[0][1])
+                        else:
+                            budget = int(matches[0][0])
+                    else:
+                        budget = int(matches[0])
+                    
+                    # Convert k to thousands
+                    if 'k' in text_clean and budget < 1000:
+                        budget *= 1000
+                    
+                    # Reasonable budget range
+                    if 10000 <= budget <= 200000:
+                        return budget
+                        
+                except ValueError:
+                    continue
+        
+        return None

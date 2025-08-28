@@ -1,19 +1,22 @@
 """
-Updated Configuration for Production Deployment
-Handles API keys, environment variables, and local file fallbacks
+FIXED Configuration - Handles All Deployment Scenarios
+Properly detects API keys and environment
 """
 import os
 from pathlib import Path
 import streamlit as st
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AppleWatchConfig:
-    """Production-ready configuration with environment handling"""
+    """Production-ready configuration with proper fallbacks"""
     
     # App settings
     PAGE_TITLE = "Apple Watch Expert"
     PAGE_ICON = "⌚"
     
-    # Data paths with fallbacks
+    # Data paths
     BASE_DIR = Path(__file__).parent
     DATA_DIR = BASE_DIR / "data"
     PDF_DIR = DATA_DIR / "pdfs"
@@ -27,70 +30,79 @@ class AppleWatchConfig:
     # Document processing
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 200
-    
-    # Retrieval settings
     RETRIEVAL_K = 3
-    
-    # API Keys with multiple sources (production ready)
-    @classmethod
-    @classmethod
-    def get_groq_api_key(cls):
-        """Get Groq API key from multiple sources with fallbacks"""
-        import streamlit as st
-        import os
-
-        # 1. Streamlit secrets
-        try:
-            if hasattr(st, 'secrets') and "GROQ_API_KEY" in st.secrets:
-                key = st.secrets["GROQ_API_KEY"]
-                if key and str(key).strip():
-                    return str(key).strip()
-        except Exception:
-            pass
-
-        # 2. Environment variable
-        key = os.environ.get("GROQ_API_KEY", "")
-        if key.strip():
-            return key.strip()
-
-        # 3. .env file as last resort (for local dev)
-        try:
-            env_file = getattr(cls, "BASE_DIR", ".") / ".env"
-            if hasattr(env_file, "exists") and env_file.exists():
-                with open(env_file, "r") as f:
-                    for line in f:
-                        if line.strip().startswith("GROQ_API_KEY="):
-                            key = line.strip().split("=", 1)[1].strip().strip('"\'')
-                            if key:
-                                return key
-        except Exception:
-            pass
-
-        # 4. No API key available
-        return None
-
-    
-    @classmethod
-    def is_groq_available(cls) -> bool:
-        """Check if Groq API key is available"""
-        return bool(cls.get_groq_api_key())
-    
-    # Available Groq models to test (ordered by preference)
-    GROQ_MODELS_TO_TEST = [
-        "llama-3.3-70b-specdec",    # Newer, potentially better
-        "llama-3.1-8b-instant",    # Proven lightweight
-        "llama3-8b-8192",          # Fallback option
-    ]
-    
-    # Model selection will be done dynamically
-    SELECTED_GROQ_MODEL = None
     
     # Embedding model
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     
+    # Available Groq models (ordered by preference)
+    GROQ_MODELS_TO_TEST = [
+        "llama-3.3-70b-specdec",
+        "llama-3.1-8b-instant",
+        "llama3-8b-8192",
+    ]
+    
+    # Runtime model selection
+    SELECTED_GROQ_MODEL = None
+    
+    @classmethod
+    def get_groq_api_key(cls):
+        """Get Groq API key with comprehensive fallback"""
+        
+        # 1. Try Streamlit secrets first (for cloud deployment)
+        try:
+            if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+                key = str(st.secrets['GROQ_API_KEY']).strip()
+                if key and len(key) > 10:  # Valid key should be longer
+                    logger.info("Groq API key loaded from Streamlit secrets")
+                    return key
+        except Exception as e:
+            logger.warning(f"Streamlit secrets check failed: {e}")
+        
+        # 2. Try environment variable
+        try:
+            key = os.environ.get("GROQ_API_KEY", "").strip()
+            if key and len(key) > 10:
+                logger.info("Groq API key loaded from environment variable")
+                return key
+        except Exception as e:
+            logger.warning(f"Environment variable check failed: {e}")
+        
+        # 3. Try .env file (local development)
+        try:
+            env_file = cls.BASE_DIR / ".env"
+            if env_file.exists():
+                with open(env_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith('GROQ_API_KEY='):
+                            key = line.split('=', 1)[1].strip().strip('"\'')
+                            if key and len(key) > 10:
+                                logger.info("Groq API key loaded from .env file")
+                                return key
+        except Exception as e:
+            logger.warning(f".env file check failed: {e}")
+        
+        logger.info("No Groq API key found - using fallback models")
+        return None
+    
+    @classmethod
+    def is_groq_available(cls) -> bool:
+        """Check if Groq API is available and working"""
+        key = cls.get_groq_api_key()
+        if not key:
+            return False
+        
+        # Test if groq package is available
+        try:
+            import groq
+            return True
+        except ImportError:
+            logger.warning("Groq package not installed")
+            return False
+    
     @classmethod
     def test_and_select_best_model(cls) -> str:
-        """Test available models and select the best one"""
+        """Test and select the best available Groq model"""
         if not cls.is_groq_available():
             return None
         
@@ -101,65 +113,53 @@ class AppleWatchConfig:
             from groq import Groq
             client = Groq(api_key=cls.get_groq_api_key())
             
-            # Test each model with a simple query
-            test_prompt = "What is Apple Watch?"
-            
+            # Test models in order of preference
             for model in cls.GROQ_MODELS_TO_TEST:
                 try:
-                    # Test model availability and response
                     response = client.chat.completions.create(
                         model=model,
-                        messages=[{"role": "user", "content": test_prompt}],
-                        max_tokens=50,
+                        messages=[{"role": "user", "content": "Test"}],
+                        max_tokens=5,
                         temperature=0.1
                     )
                     
                     if response and response.choices:
                         cls.SELECTED_GROQ_MODEL = model
-                        print(f"✅ Selected Groq model: {model}")
+                        logger.info(f"Selected Groq model: {model}")
                         return model
                         
                 except Exception as e:
-                    print(f"❌ Model {model} failed: {str(e)}")
+                    logger.warning(f"Model {model} failed: {e}")
                     continue
             
-            print("⚠️ No Groq models available")
+            logger.warning("No Groq models available")
             return None
             
         except Exception as e:
-            print(f"⚠️ Groq client failed: {e}")
+            logger.error(f"Groq client test failed: {e}")
             return None
     
     @classmethod
     def get_model_info(cls, model_name: str) -> dict:
-        """Get information about the selected model"""
+        """Get model information"""
         model_info = {
             "llama-3.3-70b-specdec": {
-                "name": "Llama 3.3 70B Speculative Decoding",
-                "size": "70B parameters",
-                "speed": "Fast (speculative decoding)",
-                "accuracy": "Very High",
-                "description": "Latest Llama model with speculative decoding optimization"
+                "name": "Llama 3.3 70B",
+                "description": "Latest high-performance model"
             },
             "llama-3.1-8b-instant": {
-                "name": "Llama 3.1 8B Instant", 
-                "size": "8B parameters",
-                "speed": "Very Fast",
-                "accuracy": "High",
-                "description": "Lightweight, optimized for speed"
+                "name": "Llama 3.1 8B", 
+                "description": "Fast, efficient model"
             },
             "llama3-8b-8192": {
                 "name": "Llama 3 8B",
-                "size": "8B parameters", 
-                "speed": "Fast",
-                "accuracy": "High",
-                "description": "Reliable 8B model"
+                "description": "Reliable standard model"
             }
         }
         
         return model_info.get(model_name, {
             "name": model_name,
-            "description": "Unknown model"
+            "description": "Groq model"
         })
     
     @classmethod
@@ -172,14 +172,13 @@ class AppleWatchConfig:
             cls.JSON_DIR.mkdir(exist_ok=True)
             cls.CHROMA_DB_DIR.mkdir(exist_ok=True)
         except Exception as e:
-            print(f"Warning: Could not create data directories: {e}")
+            logger.warning(f"Could not create data directories: {e}")
     
     @classmethod
     def validate_data_structure(cls) -> dict:
-        """Validate data folder structure and return status"""
+        """Validate data structure"""
         validation = {}
         
-        # Ensure directories exist first
         cls.ensure_data_directories()
         
         for folder_name, folder_path in [
@@ -189,7 +188,6 @@ class AppleWatchConfig:
         ]:
             exists = folder_path.exists()
             if exists:
-                # Count files (excluding .gitkeep and hidden files)
                 files = [f for f in folder_path.glob("*") if f.is_file() and not f.name.startswith('.')]
                 file_count = len(files)
             else:
@@ -206,46 +204,19 @@ class AppleWatchConfig:
     @classmethod
     def get_environment(cls) -> str:
         """Detect deployment environment"""
-        # Check for Streamlit Cloud
-        if os.getenv('STREAMLIT_SHARING_MODE') or 'streamlit.io' in os.getenv('STREAMLIT_SERVER_HEADLESS', ''):
+        if 'STREAMLIT_SHARING_MODE' in os.environ or 'streamlit.app' in str(os.environ.get('PWD', '')):
             return "streamlit_cloud"
-        
-        # Check for other cloud platforms
-        if os.getenv('DYNO'):  # Heroku
+        elif 'DYNO' in os.environ:
             return "heroku"
-        
-        if os.getenv('RENDER'):  # Render
+        elif 'RENDER' in os.environ:
             return "render"
-        
-        if os.getenv('RAILWAY_ENVIRONMENT'):  # Railway
+        elif 'RAILWAY_ENVIRONMENT' in os.environ:
             return "railway"
-        
-        # Local development
-        return "local"
-    
-    @classmethod
-    def get_app_url(cls) -> str:
-        """Get application URL based on environment"""
-        env = cls.get_environment()
-        
-        if env == "streamlit_cloud":
-            # Try to get from Streamlit context
-            try:
-                import streamlit as st
-                if hasattr(st, 'get_option'):
-                    return st.get_option('server.baseUrlPath') or "streamlit.app"
-            except:
-                pass
-            return "streamlit.app"
-        
-        elif env == "local":
-            return "http://localhost:8501"
-        
         else:
-            return "deployed_app"
+            return "local"
 
 # Global config instance
 config = AppleWatchConfig()
 
-# Initialize data directories on import
+# Initialize directories
 config.ensure_data_directories()
