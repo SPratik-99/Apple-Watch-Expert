@@ -1,0 +1,103 @@
+{
+    "last_checked": "2025-08-26",
+    "currency": "INR",
+    "models": [
+        {
+            "model": "Apple Watch Series 10",
+            "variants": [
+                {
+                    "variant": "41mm (Aluminium)",
+                    "apple_price_in_inr": 46900,
+                    "apple_availability": "High",
+                    "amazon_price_in_inr": null,
+                    "amazon_availability": "Unknown",
+                    "flipkart_price_in_inr": null,
+                    "flipkart_availability": "Unknown",
+                    "notes": "Series 10 is listed on Apple India as current model and price is from Apple store."
+                }
+            ],
+            "sources": {
+                "apple": "apple_store"
+            }
+        },
+        {
+            "model": "Apple Watch Series 9",
+            "variants": [
+                {
+                    "variant": "41mm (Aluminium)",
+                    "apple_price_in_inr": null,
+                    "apple_availability": "Discontinued/Not Listed",
+                    "amazon_price_in_inr": 39999,
+                    "amazon_availability": "Medium",
+                    "flipkart_price_in_inr": 41900,
+                    "flipkart_availability": "Medium",
+                    "notes": "Series 9 appears as reseller stock on Amazon/Flipkart; Apple store currently lists Series 10 as the current Series model."
+                },
+                {
+                    "variant": "45mm (Aluminium)",
+                    "apple_price_in_inr": null,
+                    "apple_availability": "Discontinued/Not Listed",
+                    "amazon_price_in_inr": 42999,
+                    "amazon_availability": "Medium",
+                    "flipkart_price_in_inr": 42999,
+                    "flipkart_availability": "Medium",
+                    "notes": "Prices are from marketplace listings and may reflect special/discounted offers."
+                }
+            ],
+            "sources": {
+                "amazon": "amazon_product_pages",
+                "flipkart": "flipkart_product_pages"
+            }
+        },
+        {
+            "model": "Apple Watch Ultra 2",
+            "variants": [
+                {
+                    "variant": "49mm (Titanium) GPS + Cellular",
+                    "apple_price_in_inr": 89900,
+                    "apple_availability": "High",
+                    "amazon_price_in_inr": 89900,
+                    "amazon_availability": "Medium",
+                    "flipkart_price_in_inr": 85999,
+                    "flipkart_availability": "Low",
+                    "notes": "Apple lists MRP 89,900. Flipkart listing showed a special price (~85,999) but also some out-of-stock notices on certain variants; Amazon has marketplace listings near MRP."
+                }
+            ],
+            "sources": {
+                "apple": "apple_store",
+                "amazon": "amazon_product_pages",
+                "flipkart": "flipkart_product_pages"
+            }
+        },
+        {
+            "model": "Apple Watch SE (2nd Gen)",
+            "variants": [
+                {
+                    "variant": "40mm (Aluminium) GPS",
+                    "apple_price_in_inr": 24900,
+                    "apple_availability": "High",
+                    "amazon_price_in_inr": 29900,
+                    "amazon_availability": "Medium",
+                    "flipkart_price_in_inr": 29900,
+                    "flipkart_availability": "Medium",
+                    "notes": "Apple lists SE GPS 40mm at 24,900. Amazon/Flipkart marketplace listings for 40mm/44mm GPS and GPS+Cellular variants exist and sometimes show different prices (e.g., 29,900)."
+                },
+                {
+                    "variant": "44mm (Aluminium) GPS",
+                    "apple_price_in_inr": 27900,
+                    "apple_availability": "High",
+                    "amazon_price_in_inr": 27900,
+                    "amazon_availability": "Medium",
+                    "flipkart_price_in_inr": 27900,
+                    "flipkart_availability": "Medium",
+                    "notes": "Apple lists 44mm at 27,900; marketplace prices generally cluster around that."
+                }
+            ],
+            "sources": {
+                "apple": "apple_store",
+                "amazon": "amazon_product_pages",
+                "flipkart": "flipkart_product_pages"
+            }
+        }
+    ]
+}

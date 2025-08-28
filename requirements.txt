@@ -1,0 +1,61 @@
+# Apple Watch Expert - Updated Requirements for Production Deployment
+# Handles optional dependencies gracefully
+
+# Core Streamlit
+streamlit>=1.28.0
+
+# Essential dependencies (always required)
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.0
+pathlib>=1.0.1
+typing-extensions>=4.7.0
+
+# AI/ML Dependencies (with graceful fallbacks)
+# Groq API (free, recommended for best performance)
+groq>=0.4.1
+
+# Optional: Hugging Face Transformers (CPU optimized)
+torch>=2.0.0; platform_machine != "armv7l"
+transformers>=4.30.0; platform_machine != "armv7l"
+
+# Optional: Vector Database and Embeddings
+chromadb>=0.4.15
+sentence-transformers>=2.2.2
+
+# Optional: Document Processing (PDF support)
+PyPDF2>=3.0.1
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Text Processing & NLP  
+nltk>=3.8
+regex>=2023.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Development & Debugging (minimal for production)
+logging>=0.4.9.6
+
+# Note: All dependencies are designed with graceful fallbacks
+# The system works even if optional packages are not installed
+# Core functionality: Expert responses, web scraping, budget analysis
+# Enhanced functionality: AI models, document processing, embeddings
+
+# For Streamlit Cloud deployment:
+# - All dependencies install automatically
+# - No manual configuration needed
+# - System detects available features and adapts
+
+# For local development:
+# pip install -r requirements.txt
+# Optionally add: export GROQ_API_KEY="your_key" for enhanced AI
+
+# Production deployment scenarios:
+# 1. Minimal: Just core dependencies (still fully functional)  
+# 2. Standard: Core + Groq API (recommended for recruiters)
+# 3. Full: All dependencies (maximum capabilities)
