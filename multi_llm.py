@@ -143,7 +143,8 @@ class DirectResponseAppleWatchExpert:
         if config.is_groq_available():
             try:
                 from groq import Groq
-                self.groq_client = Groq(api_key=config.GROQ_API_KEY)
+                self.groq_client = Groq(api_key=config.get_groq_api_key()
+)
                 
                 # Test and select best model
                 self.selected_model = config.test_and_select_best_model()
