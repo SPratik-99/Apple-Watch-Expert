@@ -460,30 +460,30 @@ class AppleWatchExpert:
                                 chat_history: List[Dict] = None) -> str:
         """Generate clean response - web data first, then local fallback"""
     
-    try:
-        # Handle non-existent products first
-        if self.knowledge_base._is_non_existent_product(question.lower()):
-            return self.knowledge_base._handle_non_existent_product(question)
+        try:
+            # Handle non-existent products first
+            if self.knowledge_base._is_non_existent_product(question.lower()):
+                return self.knowledge_base._handle_non_existent_product(question)
+            
+            # Try web scraping first - return raw data if found
+            if self.knowledge_base.web_available:
+                web_data = self.knowledge_base._get_web_data(question)
+                if web_data and len(web_data.strip()) > 30:
+                    # Return web data directly - no formatting
+                    return web_data.strip()
+            
+            # Fallback to local knowledge
+            local_response = self.knowledge_base._get_local_response(question.lower())
+            if local_response:
+                return local_response.strip()
+            
+            # Final fallback
+            return "Sorry, I couldn't find specific information about that. Please try asking about Apple Watch SE, Series 10, or Ultra 2."
+            
+        except Exception as e:
+            logger.error(f"Response generation failed: {e}")
+            return "I can help with Apple Watch questions. What would you like to know?"
         
-        # Try web scraping first - return raw data if found
-        if self.knowledge_base.web_available:
-            web_data = self.knowledge_base._get_web_data(question)
-            if web_data and len(web_data.strip()) > 30:
-                # Return web data directly - no formatting
-                return web_data.strip()
-        
-        # Fallback to local knowledge
-        local_response = self.knowledge_base._get_local_response(question.lower())
-        if local_response:
-            return local_response.strip()
-        
-        # Final fallback
-        return "Sorry, I couldn't find specific information about that. Please try asking about Apple Watch SE, Series 10, or Ultra 2."
-        
-    except Exception as e:
-        logger.error(f"Response generation failed: {e}")
-        return "I can help with Apple Watch questions. What would you like to know?"
-    
     
     def _enhance_with_groq(self, question: str, base_response: str, data: Dict, 
                           sentiment: Optional[SentimentAnalysis], 
