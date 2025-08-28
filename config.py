@@ -33,39 +33,42 @@ class AppleWatchConfig:
     
     # API Keys with multiple sources (production ready)
     @classmethod
+    @classmethod
     def get_groq_api_key(cls):
         """Get Groq API key from multiple sources with fallbacks"""
-        # Priority order: Streamlit secrets > Environment variable > None
-        
-        # 1. Try Streamlit secrets (for cloud deployment)
+        import streamlit as st
+        import os
+
+        # 1. Streamlit secrets
         try:
-            if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
-                key = st.secrets['GROQ_API_KEY']
-                if key and key.strip():  # Check not empty
-                    return key.strip()
+            if hasattr(st, 'secrets') and "GROQ_API_KEY" in st.secrets:
+                key = st.secrets["GROQ_API_KEY"]
+                if key and str(key).strip():
+                    return str(key).strip()
         except Exception:
             pass
-        
-        # 2. Try environment variable (for local development)
-        key = os.getenv("GROQ_API_KEY")
-        if key and key.strip():
+
+        # 2. Environment variable
+        key = os.environ.get("GROQ_API_KEY", "")
+        if key.strip():
             return key.strip()
-        
-        # 3. Try .env file (for local development)
+
+        # 3. .env file as last resort (for local dev)
         try:
-            env_file = cls.BASE_DIR / ".env"
-            if env_file.exists():
-                with open(env_file, 'r') as f:
+            env_file = getattr(cls, "BASE_DIR", ".") / ".env"
+            if hasattr(env_file, "exists") and env_file.exists():
+                with open(env_file, "r") as f:
                     for line in f:
-                        if line.startswith('GROQ_API_KEY='):
-                            key = line.split('=', 1)[1].strip().strip('"\'')
+                        if line.strip().startswith("GROQ_API_KEY="):
+                            key = line.strip().split("=", 1)[1].strip().strip('"\'')
                             if key:
                                 return key
         except Exception:
             pass
-        
+
         # 4. No API key available
         return None
+
     
     @classmethod
     def is_groq_available(cls) -> bool:
