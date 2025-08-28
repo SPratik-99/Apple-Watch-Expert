@@ -20,7 +20,7 @@ except ImportError:
 
 from config import config
 from classifier import SentimentAnalysis
-from real_apple_scraper import RealAppleWebScraper
+from apple_search import RealAppleWebScraper
 
 class AppleWatchKnowledgeBase:
     """Knowledge base that ALWAYS checks Apple.com when local data insufficient"""
