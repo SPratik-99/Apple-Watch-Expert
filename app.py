@@ -308,7 +308,7 @@ with st.sidebar:
         st.rerun()
 
 # Main Interface
-st.title("🍎 Apple Watch Expert Assistant")
+st.title("Apple Watch Expert Assistant")
 
 # Show appropriate subtitle based on active model
 try:
@@ -382,12 +382,12 @@ st.markdown("---")
 try:
     model_type = bot.active_model
     if model_type == "groq":
-        footer_text = "🍎 Apple Watch Expert • Premium AI • Real pricing • No hallucination"
+        footer_text = " Apple Watch Expert • Premium AI • Real pricing • No hallucination"
     elif model_type in ["huggingface", "ollama"]:
-        footer_text = "🍎 Apple Watch Expert • Advanced AI • Accurate information"
+        footer_text = "Apple Watch Expert • Advanced AI • Accurate information"
     else:
-        footer_text = "🍎 Apple Watch Expert • Expert knowledge • Current pricing"
+        footer_text = "Apple Watch Expert • Expert knowledge • Current pricing"
 except:
-    footer_text = "🍎 Apple Watch Expert • Accurate information • Technical support"
+    footer_text = "Apple Watch Expert • Accurate information • Technical support"
 
 st.caption(footer_text)
