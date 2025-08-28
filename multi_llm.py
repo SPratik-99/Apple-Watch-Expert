@@ -455,43 +455,31 @@ class AppleWatchExpert:
         }
         logger.info("✅ Expert mode with mandatory Apple.com checking")
     
-    def generate_apple_watch_response(self, question: str, context: str = "", 
-                                    sentiment: Optional[SentimentAnalysis] = None,
-                                    chat_history: List[Dict] = None) -> str:
-        """Generate response with MANDATORY Apple.com checking when local data missing"""
-        
+    def generate_apple_watch_response(self, question: str, context: str = "",
+                                 sentiment: Optional[SentimentAnalysis] = None,
+                                 chat_history: List[Dict] = None) -> str:
         try:
-            # ALWAYS get comprehensive data (this will check Apple.com when needed)
-            comprehensive_data = self.knowledge_base.get_comprehensive_response(question)
-            
-            base_response = comprehensive_data["response"]
-            web_checked = comprehensive_data.get("web_checked", False)
-            
-            # Log web checking status
-            if web_checked:
-                logger.info(f"✅ Apple.com checked for query: {question[:50]}")
-            else:
-                logger.info(f"ℹ️ Local response for query: {question[:50]}")
-            
-            # Use AI model to enhance response if available
-            if self.active_model == "groq" and self.groq_client:
-                return self._enhance_with_groq(question, base_response, comprehensive_data, sentiment, chat_history)
-            
-            elif self.active_model == "huggingface" and self.hf_pipeline:
-                # For HF, return the comprehensive response as-is
-                return base_response
-                
-            elif self.active_model == "ollama" and self.ollama_available:
-                return self._enhance_with_ollama(question, base_response, comprehensive_data, sentiment)
-                
-            else:
-                # Return comprehensive response
-                return base_response
-                
-        except Exception as e:
-            logger.error(f"Response generation failed: {e}")
-            return "I'm here to help with Apple Watch questions! Let me check Apple.com for current information. What specific model or feature are you interested in?"
-    
+            # Non-existent products, give local reply
+            if self.knowledge_base._is_non_existent_product(question.lower()):
+                return self.knowledge_base._handle_non_existent_product(question)
+
+            # Apple.com response, returned directly (NO extra notes/wrappers)
+            if self.knowledge_base.web_available:
+                web_data = self.knowledge_base._get_web_data(question)
+                if web_data and len(web_data.strip()) > 20:
+                    return web_data.strip()
+
+        # Fallback: local knowledge (concise, no wrappers)
+        local_resp = self.knowledge_base._get_local_response(question.lower())
+        if local_resp:
+            return local_resp.strip()
+
+        # Final fallback
+        return "Sorry, I couldn't find an answer for that."
+    except Exception as e:
+        logger.error(f"Response generation failed: {e}")
+        return "Sorry, there was an error. Please ask another Apple Watch question."
+
     def _enhance_with_groq(self, question: str, base_response: str, data: Dict, 
                           sentiment: Optional[SentimentAnalysis], 
                           chat_history: List[Dict]) -> str:
