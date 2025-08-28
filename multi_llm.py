@@ -455,31 +455,36 @@ class AppleWatchExpert:
         }
         logger.info("✅ Expert mode with mandatory Apple.com checking")
     
-    def generate_apple_watch_response(self, question: str, context: str = "",
-                                 sentiment: Optional[SentimentAnalysis] = None,
-                                 chat_history: List[Dict] = None) -> str:
-        try:
-            # Non-existent products, give local reply
-            if self.knowledge_base._is_non_existent_product(question.lower()):
-                return self.knowledge_base._handle_non_existent_product(question)
-
-            # Apple.com response, returned directly (NO extra notes/wrappers)
-            if self.knowledge_base.web_available:
-                web_data = self.knowledge_base._get_web_data(question)
-                if web_data and len(web_data.strip()) > 20:
-                    return web_data.strip()
-
-        # Fallback: local knowledge (concise, no wrappers)
-        local_resp = self.knowledge_base._get_local_response(question.lower())
-        if local_resp:
-            return local_resp.strip()
-
+    def generate_apple_watch_response(self, question: str, context: str = "", 
+                                sentiment: Optional[SentimentAnalysis] = None,
+                                chat_history: List[Dict] = None) -> str:
+    """Generate clean response - web data first, then local fallback"""
+    
+    try:
+        # Handle non-existent products first
+        if self.knowledge_base._is_non_existent_product(question.lower()):
+            return self.knowledge_base._handle_non_existent_product(question)
+        
+        # Try web scraping first - return raw data if found
+        if self.knowledge_base.web_available:
+            web_data = self.knowledge_base._get_web_data(question)
+            if web_data and len(web_data.strip()) > 30:
+                # Return web data directly - no formatting
+                return web_data.strip()
+        
+        # Fallback to local knowledge
+        local_response = self.knowledge_base._get_local_response(question.lower())
+        if local_response:
+            return local_response.strip()
+        
         # Final fallback
-        return "Sorry, I couldn't find an answer for that."
+        return "Sorry, I couldn't find specific information about that. Please try asking about Apple Watch SE, Series 10, or Ultra 2."
+        
     except Exception as e:
         logger.error(f"Response generation failed: {e}")
-        return "Sorry, there was an error. Please ask another Apple Watch question."
-
+        return "I can help with Apple Watch questions. What would you like to know?"
+    
+    
     def _enhance_with_groq(self, question: str, base_response: str, data: Dict, 
                           sentiment: Optional[SentimentAnalysis], 
                           chat_history: List[Dict]) -> str:
