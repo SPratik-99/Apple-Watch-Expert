@@ -1,4 +1,4 @@
-# 🍎 Apple Watch Expert - Web-Enabled AI System
+# Apple Watch Expert - Web-Enabled AI System
 
 A **comprehensive Apple Watch expert chatbot with real web scraping** that automatically fetches live data from apple.com when local information is insufficient, using intelligent AI model prioritization.
 
