@@ -458,7 +458,7 @@ class AppleWatchExpert:
     def generate_apple_watch_response(self, question: str, context: str = "", 
                                 sentiment: Optional[SentimentAnalysis] = None,
                                 chat_history: List[Dict] = None) -> str:
-    """Generate clean response - web data first, then local fallback"""
+        """Generate clean response - web data first, then local fallback"""
     
     try:
         # Handle non-existent products first
