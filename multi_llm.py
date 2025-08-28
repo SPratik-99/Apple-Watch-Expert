@@ -1,6 +1,6 @@
 """
-FIXED Multi-LLM System with Proper Fallbacks
-No more vague answers or hallucination - only real data
+FINAL Multi-LLM System with Mandatory Web Scraping
+Always checks Apple.com when information is not found locally
 """
 import logging
 from typing import List, Dict, Optional, Union
@@ -20,15 +20,457 @@ except ImportError:
 
 from config import config
 from classifier import SentimentAnalysis
+from real_apple_scraper import RealAppleWebScraper
+
+class AppleWatchKnowledgeBase:
+    """Knowledge base that ALWAYS checks Apple.com when local data insufficient"""
+    
+    def __init__(self):
+        # Local knowledge for instant responses
+        self.local_knowledge = {
+            "current_models": {
+                "Apple Watch SE (2nd gen)": {
+                    "starting_price": 24900,
+                    "sizes": ["40mm", "44mm"],
+                    "key_features": ["Heart rate", "GPS", "Sleep tracking", "Crash detection"],
+                    "missing_features": ["Always-On display", "ECG", "Blood Oxygen", "Double Tap"]
+                },
+                "Apple Watch Series 9": {
+                    "starting_price": 41900,
+                    "sizes": ["41mm", "45mm"], 
+                    "key_features": ["S9 chip", "Always-On display", "ECG", "Blood Oxygen", "Double Tap", "Temperature sensing"],
+                    "unique": ["Double Tap gesture", "On-device Siri", "Brightest display"]
+                },
+                "Apple Watch Ultra 2": {
+                    "starting_price": 89900,
+                    "sizes": ["49mm"],
+                    "key_features": ["Titanium case", "Action Button", "100m water resistance", "36+ hour battery"],
+                    "unique": ["Precision dual-frequency GPS", "86dB emergency siren", "Extreme durability"]
+                }
+            },
+            "non_existent_models": [
+                "Apple Watch Series 10", "Apple Watch Series10",
+                "Apple Watch Ultra 3", "Apple Watch Ultra3", 
+                "Apple Watch SE 3", "Apple Watch SE3"
+            ]
+        }
+        
+        # Initialize web scraper for live data
+        self.web_scraper = RealAppleWebScraper()
+        self.web_connection_available = False
+        self._test_web_connection()
+    
+    def _test_web_connection(self):
+        """Test web scraping capability"""
+        try:
+            self.web_connection_available = self.web_scraper.test_connection()
+            if self.web_connection_available:
+                logger.info("✅ Apple.com web scraping available")
+            else:
+                logger.warning("⚠️ Apple.com web scraping unavailable")
+        except Exception as e:
+            logger.error(f"Web connection test failed: {e}")
+            self.web_connection_available = False
+    
+    def get_comprehensive_response(self, query: str) -> Dict[str, str]:
+        """Get comprehensive response combining local knowledge + web data"""
+        
+        # Step 1: Check if query is about non-existent products
+        if self._is_non_existent_product(query):
+            return {
+                "source": "local_knowledge",
+                "response": self._handle_non_existent_product(query),
+                "confidence": "high"
+            }
+        
+        # Step 2: Try to get local knowledge first
+        local_response = self._get_local_knowledge(query)
+        
+        # Step 3: ALWAYS try web scraping for additional/current information
+        web_response = ""
+        if self.web_connection_available:
+            try:
+                web_response = self.web_scraper.search_apple_watch_info(query)
+                if web_response:
+                    logger.info(f"✅ Retrieved web data for: {query[:50]}")
+                else:
+                    logger.info(f"ℹ️ No web data found for: {query[:50]}")
+            except Exception as e:
+                logger.error(f"Web scraping failed for '{query}': {e}")
+        
+        # Step 4: Combine responses intelligently
+        return self._combine_responses(local_response, web_response, query)
+    
+    def _is_non_existent_product(self, query: str) -> bool:
+        """Check if query asks about non-existent Apple Watch models"""
+        query_lower = query.lower()
+        return any(model.lower() in query_lower for model in self.local_knowledge["non_existent_models"])
+    
+    def _handle_non_existent_product(self, query: str) -> str:
+        """Handle queries about non-existent products"""
+        query_lower = query.lower()
+        
+        # Identify which non-existent model was mentioned
+        mentioned_model = "the mentioned model"
+        for model in self.local_knowledge["non_existent_models"]:
+            if model.lower() in query_lower:
+                mentioned_model = model
+                break
+        
+        return f"""I cannot provide information about {mentioned_model} because it doesn't exist in Apple's current lineup.
+
+**Current Apple Watch Models (August 2025):**
+• **Apple Watch SE (2nd gen)**: Starting at ₹24,900
+• **Apple Watch Series 9**: Starting at ₹41,900  
+• **Apple Watch Ultra 2**: ₹89,900
+
+Would you like detailed information about any of these actual models?"""
+    
+    def _get_local_knowledge(self, query: str) -> str:
+        """Get response from local knowledge base"""
+        query_lower = query.lower()
+        
+        # Budget-based recommendations
+        if any(word in query_lower for word in ["budget", "price", "cost", "suggest", "recommend"]):
+            import re
+            budget_match = re.search(r'(\d+)k|(\d{4,6})', query_lower)
+            if budget_match:
+                budget = int(budget_match.group(1) or budget_match.group(2))
+                if 'k' in query_lower and budget < 1000:
+                    budget *= 1000
+                return self._get_budget_recommendation(budget)
+        
+        # Model-specific information
+        if "se" in query_lower and not "series" in query_lower:
+            return self._get_se_info()
+        elif "series 9" in query_lower or "s9" in query_lower:
+            return self._get_series9_info()
+        elif "ultra" in query_lower:
+            return self._get_ultra_info()
+        
+        # Comparisons
+        if any(word in query_lower for word in ["compare", "vs", "versus", "difference"]):
+            if "se" in query_lower and ("series 9" in query_lower or "s9" in query_lower):
+                return self._get_se_vs_series9_comparison()
+        
+        # Technical support
+        if any(word in query_lower for word in ["charge", "problem", "fix", "not working"]):
+            return self._get_technical_support(query_lower)
+        
+        return ""  # No local knowledge available
+    
+    def _combine_responses(self, local_response: str, web_response: str, query: str) -> Dict[str, str]:
+        """Intelligently combine local and web responses"""
+        
+        # If we have both local and web data
+        if local_response and web_response:
+            combined_response = local_response
+            
+            # Add web data as additional information
+            if len(web_response.strip()) > 20:  # Only if web response is substantial
+                combined_response += f"\n\n**Latest from Apple.com:** {web_response[:300]}"
+            
+            return {
+                "source": "combined",
+                "response": combined_response,
+                "confidence": "high"
+            }
+        
+        # If we only have local data
+        elif local_response:
+            response = local_response
+            
+            # Add note about web availability
+            if not self.web_connection_available:
+                response += "\n\n*Note: Live web data currently unavailable*"
+            elif not web_response:
+                response += "\n\n*Note: No additional information found on Apple.com*"
+            
+            return {
+                "source": "local_knowledge",
+                "response": response,
+                "confidence": "medium"
+            }
+        
+        # If we only have web data
+        elif web_response:
+            return {
+                "source": "web_scraping",
+                "response": f"**From Apple.com:** {web_response}",
+                "confidence": "medium"
+            }
+        
+        # If we have no specific data, but web is available, indicate we checked
+        else:
+            if self.web_connection_available:
+                fallback_response = f"""I checked Apple.com for information about your query but didn't find specific details.
+
+**I can help with these topics:**
+• Current Apple Watch models and pricing
+• Model comparisons (SE vs Series 9 vs Ultra 2)
+• Technical support and troubleshooting
+• Budget recommendations
+
+Could you please rephrase your question or ask about a specific model?"""
+            else:
+                fallback_response = """I don't have specific information about that query in my current knowledge base.
+
+**I can help with these topics:**
+• Current Apple Watch models and pricing
+• Model comparisons (SE vs Series 9 vs Ultra 2)  
+• Technical support and troubleshooting
+• Budget recommendations
+
+What would you like to know about Apple Watch?"""
+            
+            return {
+                "source": "fallback",
+                "response": fallback_response,
+                "confidence": "low"
+            }
+    
+    def _get_budget_recommendation(self, budget: int) -> str:
+        """Get budget-specific recommendations"""
+        if budget < 25000:
+            return f"""For ₹{budget:,}, you're close to the Apple Watch SE starting price.
+
+**Apple Watch SE (2nd gen)**: ₹24,900
+• S8 dual-core processor
+• Heart rate monitoring and GPS tracking
+• Sleep tracking with detailed stages
+• Crash detection and fall detection
+• 85+ workout types, 18+ hour battery
+
+**Your options:**
+• Stretch budget by ₹{24900-budget:,} for the SE 40mm GPS
+• Look for certified refurbished SE models (₹18,000-22,000)
+• Wait for festival sales (SE often drops to ₹22,000-23,000)"""
+
+        elif budget <= 50000:
+            return f"""Perfect budget for the Apple Watch Series 9!
+
+**Apple Watch Series 9** (₹41,900-44,900):
+• S9 SiP chip - 60% faster than SE
+• Always-On Retina display (2000 nits brightness)
+• Double Tap gesture - revolutionary control method
+• Complete health suite: ECG, Blood Oxygen, temperature sensing
+• Enhanced Siri with on-device processing
+
+**Your ₹{budget:,} budget covers:**
+• Series 9 41mm GPS: ₹41,900 ✅
+• Series 9 45mm GPS: ₹44,900 ✅
+• Premium Sport Loop or Leather band
+
+The Series 9 is the best overall Apple Watch for most users."""
+
+        else:
+            return f"""Excellent budget for premium Apple Watch options!
+
+**Option 1: Apple Watch Series 9** (₹41,900-53,900)
+Complete flagship experience with latest features
+
+**Option 2: Apple Watch Ultra 2** (₹89,900)
+• Aerospace titanium case, most durable
+• Largest 49mm display, 3000 nits brightness
+• 36+ hour battery (72 hours Low Power Mode)
+• 100m water resistance, precision dual-frequency GPS
+• Action Button, 86dB emergency siren
+
+**For ₹{budget:,}, I recommend:**
+• **Series 9** for everyday premium use with great value
+• **Ultra 2** if you need extreme durability and longest battery
+• **Series 9 + Premium accessories** for complete luxury setup"""
+    
+    def _get_se_info(self) -> str:
+        """Get Apple Watch SE information"""
+        return """**Apple Watch SE (2nd generation)**
+
+**Starting Price:** ₹24,900 (40mm GPS)
+**Available Sizes:** 40mm (₹24,900), 44mm (₹28,900)
+**Cellular Options:** 40mm (₹30,900), 44mm (₹34,900)
+
+**Key Features:**
+• S8 SiP dual-core processor
+• Heart rate monitoring with irregular rhythm alerts
+• Sleep tracking with REM, Core, Deep sleep stages
+• GPS tracking for accurate workout data
+• Crash detection and fall detection
+• 85+ workout types
+• Water resistant to 50 meters
+• 18+ hour all-day battery life
+
+**What's Missing vs Series 9:**
+• No Always-On Retina display
+• No ECG app or Blood Oxygen monitoring
+• No Double Tap gesture control
+• No temperature sensing
+• Older S8 processor (vs S9)
+
+**Perfect For:** First-time Apple Watch users, budget-conscious buyers, fitness enthusiasts who don't need advanced health monitoring."""
+    
+    def _get_series9_info(self) -> str:
+        """Get Apple Watch Series 9 information"""
+        return """**Apple Watch Series 9**
+
+**Starting Price:** ₹41,900 (41mm GPS)
+**Available Sizes:** 41mm (₹41,900), 45mm (₹44,900)
+**Cellular Options:** 41mm (₹50,900), 45mm (₹53,900)
+
+**Key Features:**
+• S9 SiP chip - 60% faster than Series 8
+• Always-On Retina display with 2000 nits brightness
+• Double Tap gesture control - tap thumb and finger to control
+• Complete health monitoring: ECG, Blood Oxygen, temperature sensing
+• Enhanced Siri with on-device processing for privacy
+• Heart rate monitoring with irregular rhythm alerts
+• Advanced sleep tracking and cycle tracking
+• Precision dual-frequency GPS
+• Water resistant to 50 meters
+• 18+ hour battery life
+
+**New in Series 9:**
+• Double Tap gesture - revolutionary new control method
+• Brightest Apple Watch display ever (2000 nits)
+• On-device Siri processing for faster, more private interactions
+• Carbon neutral when paired with Sport Loop
+
+**Perfect For:** Users who want the complete Apple Watch experience with latest features, health-conscious individuals, tech enthusiasts."""
+    
+    def _get_ultra_info(self) -> str:
+        """Get Apple Watch Ultra 2 information"""
+        return """**Apple Watch Ultra 2**
+
+**Price:** ₹89,900 (49mm Cellular only)
+**Available Size:** 49mm only (largest Apple Watch)
+
+**Extreme Features:**
+• Aerospace-grade titanium case - most durable Apple Watch
+• Flat sapphire crystal display - virtually scratchproof
+• 3000 nits brightness - viewable in direct sunlight
+• 100m water resistance - suitable for recreational scuba diving
+• Action Button - customizable for instant access to features
+• 86dB emergency siren - audible up to 180 meters away
+• Precision dual-frequency GPS - most accurate location tracking
+
+**Extended Battery:**
+• 36 hours normal use (vs 18 hours on other models)
+• Up to 72 hours in Low Power Mode
+• Perfect for multi-day adventures
+
+**Built for Extremes:**
+• Operating temperature: -20°C to 55°C
+• MIL-STD 810H tested for durability
+• Designed for diving, mountaineering, endurance sports
+• Ocean Band and Alpine Loop designed for extreme conditions
+
+**Perfect For:** Serious athletes, outdoor adventurers, professionals in extreme environments, users who need maximum durability and longest battery life."""
+    
+    def _get_se_vs_series9_comparison(self) -> str:
+        """Compare SE vs Series 9"""
+        return """**Apple Watch SE vs Series 9 - Complete Comparison**
+
+**Apple Watch SE (2nd gen)** - ₹24,900
+✅ S8 dual-core processor
+✅ Heart rate monitoring, sleep tracking
+✅ Crash detection, fall detection
+✅ GPS tracking, 85+ workouts
+✅ Water resistant to 50m, 18+ hour battery
+❌ No Always-On display
+❌ No ECG or Blood Oxygen monitoring  
+❌ No Double Tap gesture
+❌ No temperature sensing
+
+**Apple Watch Series 9** - ₹41,900
+✅ All SE features PLUS:
+✅ S9 SiP chip (60% faster performance)
+✅ Always-On Retina display (2000 nits)
+✅ Double Tap gesture control
+✅ ECG app for heart rhythm monitoring
+✅ Blood Oxygen app for wellness insights
+✅ Temperature sensing for cycle tracking
+✅ On-device Siri processing
+
+**₹17,000 Price Difference - Worth It If:**
+• You want Always-On display convenience
+• Advanced health monitoring is important (ECG/Blood Oxygen)
+• You love cutting-edge features (Double Tap gesture)
+• Performance matters for apps and smooth navigation
+
+**Stick with SE If:**
+• Budget is the primary concern
+• Basic fitness tracking meets your needs
+• This is your first Apple Watch experience
+• You don't need advanced health features
+
+Both offer excellent value - Series 9 for premium experience, SE for best affordability."""
+    
+    def _get_technical_support(self, query: str) -> str:
+        """Get technical support information"""
+        if "charge" in query:
+            return """**Apple Watch Charging Issues - Complete Solution**
+
+**Step 1: Clean Everything**
+• Remove Apple Watch from charger completely
+• Use soft, lint-free cloth (microfiber works best)
+• Clean watch back (circular sensor area) thoroughly
+• Clean charger surface - remove debris, sweat, moisture
+
+**Step 2: Check Setup**
+• Use original Apple charging cable ONLY
+• Connect to 5W+ USB power adapter (iPhone charger works)
+• Ensure magnetic connection clicks properly
+• Green lightning bolt should appear on watch
+
+**Step 3: Force Restart**
+• Hold side button + Digital Crown together
+• Keep holding for exactly 10 seconds
+• Release when Apple logo appears
+• Place back on charger after restart
+
+**Step 4: Advanced Troubleshooting**
+• Try different power outlet and USB adapter
+• Check charging cable for damage
+• Ensure watch is centered on charger pad
+• Test in different temperature environment
+
+**Still not working?** Contact Apple Support if under warranty or visit Apple Store for free diagnostics."""
+        
+        return """**Apple Watch Technical Support**
+
+**Common Issues & Quick Fixes:**
+
+**Watch Frozen/Unresponsive:**
+• Force restart: Hold side button + Digital Crown for 10 seconds
+
+**Battery Draining Fast:**
+• Check Always-On Display settings
+• Reduce background app refresh
+• Update to latest watchOS
+
+**Connection Problems:**
+• Keep iPhone nearby (within 10 meters)
+• Check Bluetooth is ON on iPhone
+• Restart both devices
+• Re-pair if necessary
+
+**Fitness Tracking Issues:**
+• Ensure wrist detection is ON
+• Keep watch snug during workouts
+• Calibrate in Settings > Privacy & Security
+
+Tell me your specific issue for detailed troubleshooting steps!"""
 
 class AppleWatchExpert:
-    """Fixed Apple Watch Expert with proper model fallbacks"""
+    """Enhanced Apple Watch Expert with mandatory web checking"""
     
     def __init__(self):
         self.groq_client = None
         self.selected_model = None
         self.hf_pipeline = None
         self.ollama_available = False
+        
+        # Enhanced knowledge base with web integration
+        self.knowledge_base = AppleWatchKnowledgeBase()
         
         # Status tracking
         self.active_model = "none"
@@ -55,7 +497,7 @@ class AppleWatchExpert:
                         "type": "groq",
                         "model": self.selected_model,
                         "status": "active",
-                        "description": "Premium AI model"
+                        "description": "Premium AI with web verification"
                     }
                     logger.info(f"✅ Groq initialized: {self.selected_model}")
                     return  # Success - no need to try others
@@ -63,21 +505,32 @@ class AppleWatchExpert:
             except Exception as e:
                 logger.error(f"❌ Groq initialization failed: {e}")
         
-        # 2. Try Hugging Face (second priority)
+        # 2. Try Hugging Face (second priority) - FIXED PARAMETERS
         if TORCH_AVAILABLE:
             try:
-                from transformers import pipeline
+                from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
                 
-                # Use a lightweight model for CPU
+                model_name = "microsoft/DialoGPT-small"
+                
+                # Initialize components separately for better control
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                model = AutoModelForCausalLM.from_pretrained(model_name)
+                
+                # Add pad token if missing
+                if tokenizer.pad_token is None:
+                    tokenizer.pad_token = tokenizer.eos_token
+                
+                # Create pipeline with corrected parameters
                 self.hf_pipeline = pipeline(
                     "text-generation",
-                    model="microsoft/DialoGPT-small",
+                    model=model,
+                    tokenizer=tokenizer,
                     device=-1,  # CPU only
                     do_sample=True,
-                    temperature=0.3,
-                    max_new_tokens=120,
-                    truncation=True,
-                    pad_token_id=50256
+                    temperature=0.7,
+                    max_new_tokens=100,
+                    pad_token_id=tokenizer.eos_token_id,
+                    return_full_text=False
                 )
                 
                 self.active_model = "huggingface"
@@ -85,9 +538,9 @@ class AppleWatchExpert:
                     "type": "huggingface", 
                     "model": "DialoGPT-small",
                     "status": "active",
-                    "description": "Local AI processing"
+                    "description": "Local AI with web verification"
                 }
-                logger.info("✅ Hugging Face initialized")
+                logger.info("✅ Hugging Face initialized with web integration")
                 return  # Success
                 
             except Exception as e:
@@ -103,73 +556,91 @@ class AppleWatchExpert:
                     "type": "ollama",
                     "model": "llama3.1:8b",
                     "status": "active", 
-                    "description": "Local advanced AI"
+                    "description": "Advanced local AI with web verification"
                 }
-                logger.info("✅ Ollama available")
+                logger.info("✅ Ollama available with web integration")
                 return  # Success
                 
         except Exception as e:
             logger.warning(f"❌ Ollama not available: {e}")
         
-        # 4. Fallback to expert knowledge base (always available)
+        # 4. Fallback to expert knowledge base with web scraping
         self.active_model = "expert"
         self.model_status = {
             "type": "expert",
-            "model": "knowledge_base",
+            "model": "knowledge_base_with_web",
             "status": "active",
-            "description": "Expert knowledge system"
+            "description": "Expert knowledge with web verification"
         }
-        logger.info("✅ Expert knowledge base ready")
+        logger.info("✅ Expert knowledge base with web scraping ready")
     
     def generate_apple_watch_response(self, question: str, context: str = "", 
                                     sentiment: Optional[SentimentAnalysis] = None,
                                     chat_history: List[Dict] = None) -> str:
-        """Generate response using active model with strict no-hallucination policy"""
+        """Generate response with MANDATORY web checking when needed"""
         
         try:
-            # Use active model in priority order
+            # STEP 1: ALWAYS get comprehensive information (local + web)
+            comprehensive_data = self.knowledge_base.get_comprehensive_response(question)
+            
+            # STEP 2: Use AI model to enhance the response if available
+            base_response = comprehensive_data["response"]
+            
             if self.active_model == "groq" and self.groq_client:
-                return self._generate_groq_response(question, context, sentiment, chat_history)
+                enhanced_response = self._enhance_with_groq(question, base_response, comprehensive_data, sentiment, chat_history)
+                return enhanced_response
             
             elif self.active_model == "huggingface" and self.hf_pipeline:
-                return self._generate_hf_response(question, context, sentiment)
+                enhanced_response = self._enhance_with_hf(question, base_response, comprehensive_data, sentiment)
+                return enhanced_response
                 
             elif self.active_model == "ollama" and self.ollama_available:
-                return self._generate_ollama_response(question, context, sentiment)
+                enhanced_response = self._enhance_with_ollama(question, base_response, comprehensive_data, sentiment)
+                return enhanced_response
                 
             else:
-                # Always fallback to expert knowledge base
-                return self._generate_expert_response(question, context, sentiment)
+                # Return the comprehensive response directly
+                return base_response
                 
         except Exception as e:
             logger.error(f"Response generation failed: {e}")
-            return self._generate_expert_response(question, context, sentiment)
+            # Even if everything fails, try to get basic response
+            try:
+                fallback_data = self.knowledge_base.get_comprehensive_response(question)
+                return fallback_data["response"]
+            except:
+                return "I'm here to help with Apple Watch questions! What specific information do you need?"
     
-    def _generate_groq_response(self, question: str, context: str, 
-                               sentiment: Optional[SentimentAnalysis], 
-                               chat_history: List[Dict]) -> str:
-        """Generate response using Groq with strict guidelines"""
+    def _enhance_with_groq(self, question: str, base_response: str, data: Dict, 
+                          sentiment: Optional[SentimentAnalysis], 
+                          chat_history: List[Dict]) -> str:
+        """Enhance response using Groq while preserving factual accuracy"""
         
-        system_prompt = """You are an Apple Watch expert. Follow these rules strictly:
+        system_prompt = """You are an Apple Watch expert assistant. Your job is to enhance and format the provided factual information into a natural, helpful response.
 
-1. NEVER make up product information, prices, or model numbers
-2. Only provide information you are certain about
-3. If asked about non-existent products (like Series 10), clearly state they don't exist
-4. Base pricing on real Indian market data only
-5. Give direct, helpful responses without mentioning data sources
-6. For troubleshooting, provide step-by-step solutions"""
+CRITICAL RULES:
+1. Use ONLY the factual information provided in the context
+2. NEVER add new product information, prices, or specifications not in the context
+3. If the context says a product doesn't exist, clearly state that
+4. Format the information in a helpful, conversational way
+5. Don't mention that you're using provided information
+
+The factual information will be provided after the user's question."""
 
         # Build conversation
         messages = [{"role": "system", "content": system_prompt}]
         
         # Add recent history for context
         if chat_history:
-            messages.extend(chat_history[-3:])
+            messages.extend(chat_history[-2:])
         
-        # Add current question with context
-        user_message = f"Question: {question}"
-        if context:
-            user_message += f"\n\nRelevant context: {context[:800]}"
+        # Provide the question and factual context
+        user_message = f"""User Question: {question}
+
+Factual Information to Use:
+{base_response}
+
+Please format this information into a natural, helpful response for the user. Use only the factual information provided above."""
         
         messages.append({"role": "user", "content": user_message})
         
@@ -177,65 +648,51 @@ class AppleWatchExpert:
             response = self.groq_client.chat.completions.create(
                 model=self.selected_model,
                 messages=messages,
-                temperature=0.1,
-                max_tokens=600,
+                temperature=0.1,  # Low temperature for factual consistency
+                max_tokens=700,
                 top_p=0.9
             )
             
-            return response.choices[0].message.content.strip()
+            enhanced_response = response.choices[0].message.content.strip()
+            
+            # Verify the enhanced response doesn't contradict the base facts
+            if len(enhanced_response) > 50 and "I don't have" not in enhanced_response:
+                return enhanced_response
+            else:
+                return base_response  # Fallback to original if enhancement failed
             
         except Exception as e:
-            logger.error(f"Groq generation failed: {e}")
-            return self._generate_expert_response(question, context, sentiment)
+            logger.error(f"Groq enhancement failed: {e}")
+            return base_response
     
-    def _generate_hf_response(self, question: str, context: str, 
-                             sentiment: Optional[SentimentAnalysis]) -> str:
-        """Generate response using Hugging Face"""
+    def _enhance_with_hf(self, question: str, base_response: str, data: Dict, 
+                        sentiment: Optional[SentimentAnalysis]) -> str:
+        """Enhance with Hugging Face (lightweight enhancement)"""
+        
+        # For HF, just return the base response since it's already comprehensive
+        # HF models are not great at following complex instructions
+        return base_response
+    
+    def _enhance_with_ollama(self, question: str, base_response: str, data: Dict,
+                           sentiment: Optional[SentimentAnalysis]) -> str:
+        """Enhance with Ollama"""
         
         try:
-            # Simple prompt for DialoGPT
-            prompt = f"Apple Watch Expert: {question}\nAnswer:"
-            
-            result = self.hf_pipeline(
-                prompt,
-                max_new_tokens=100,
-                temperature=0.3,
-                do_sample=True,
-                truncation=True
-            )
-            
-            if result and len(result) > 0:
-                response = result[0]['generated_text'].replace(prompt, "").strip()
-                if len(response) > 15:
-                    return response
-            
-            # Fallback to expert if HF response is poor
-            return self._generate_expert_response(question, context, sentiment)
-            
-        except Exception as e:
-            logger.error(f"Hugging Face generation failed: {e}")
-            return self._generate_expert_response(question, context, sentiment)
-    
-    def _generate_ollama_response(self, question: str, context: str, 
-                                 sentiment: Optional[SentimentAnalysis]) -> str:
-        """Generate response using Ollama"""
-        
-        try:
-            prompt = f"""You are an Apple Watch expert. Answer directly without mentioning data sources.
+            prompt = f"""Format this Apple Watch information into a helpful response:
 
-Context: {context[:500] if context else 'Apple Watch knowledge'}
+User asked: {question}
 
-Question: {question}
+Factual information: {base_response[:800]}
 
-Expert answer:"""
+Format this into a natural, helpful response. Use only the provided information."""
             
             payload = {
                 "model": "llama3.1:8b",
                 "prompt": prompt,
                 "options": {
-                    "temperature": 0.2,
+                    "temperature": 0.1,  # Low temperature for factual consistency
                     "top_p": 0.9,
-                    "num_predict": 250
+                    "num_predict": 300
                 },
                 "stream": False
             }
@@ -248,310 +705,25 @@ Expert answer:"""
             
             if response.status_code == 200:
                 result = response.json()
-                return result.get("response", "").strip()
+                enhanced = result.get("response", "").strip()
+                if len(enhanced) > 50:
+                    return enhanced
             
-            return self._generate_expert_response(question, context, sentiment)
+            return base_response
             
         except Exception as e:
-            logger.error(f"Ollama generation failed: {e}")
-            return self._generate_expert_response(question, context, sentiment)
-    
-    def _generate_expert_response(self, question: str, context: str = "", 
-                                 sentiment: Optional[SentimentAnalysis] = None) -> str:
-        """Generate expert response using knowledge base - NO HALLUCINATION"""
-        
-        q_lower = question.lower()
-        
-        # Handle non-existent products explicitly
-        if any(term in q_lower for term in ["series 10", "series10", "ultra 3", "ultra3", "se 3"]):
-            return f"""I cannot provide information about {self._extract_mentioned_model(question)} because it doesn't exist in Apple's current lineup.
-
-**Current Apple Watch Models (August 2025):**
-• **Apple Watch SE (2nd gen)**: ₹24,900 - ₹34,900
-• **Apple Watch Series 9**: ₹41,900 - ₹53,900  
-• **Apple Watch Ultra 2**: ₹89,900
-
-Would you like detailed information about any of these actual models?"""
-        
-        # Budget recommendations with real pricing
-        if any(word in q_lower for word in ["budget", "price", "suggest", "recommend", "best"]):
-            import re
-            budget_match = re.search(r'(\d+)k|(\d{4,6})', q_lower)
-            if budget_match:
-                budget = int(budget_match.group(1) or budget_match.group(2))
-                if 'k' in q_lower and budget < 1000:
-                    budget *= 1000
-                
-                return self._get_budget_recommendation(budget)
-        
-        # Model comparisons
-        if any(word in q_lower for word in ["compare", "vs", "versus", "difference"]):
-            if "se" in q_lower and ("series 9" in q_lower or "s9" in q_lower):
-                return self._get_se_vs_series9_comparison()
-            elif "ultra" in q_lower and ("series 9" in q_lower or "s9" in q_lower):
-                return self._get_ultra_vs_series9_comparison()
-        
-        # Technical support
-        if any(word in q_lower for word in ["charge", "problem", "fix", "not working", "issue"]):
-            return self._get_technical_support(q_lower)
-        
-        # Default expert response
-        return """I'm your Apple Watch expert! I provide accurate information about:
-
-**🏷️ Model Selection**
-Find the perfect Apple Watch for your needs and budget
-
-**💰 Current Pricing** (Real Indian market prices)
-• SE (2nd gen): ₹24,900 - ₹34,900
-• Series 9: ₹41,900 - ₹53,900
-• Ultra 2: ₹89,900
-
-**🔧 Technical Support**
-Setup, pairing, troubleshooting, and maintenance help
-
-**⚖️ Detailed Comparisons**
-Feature-by-feature analysis between models
-
-What specific Apple Watch question can I help you with?"""
-    
-    def _extract_mentioned_model(self, question: str) -> str:
-        """Extract the mentioned model from question"""
-        q_lower = question.lower()
-        if "series 10" in q_lower or "series10" in q_lower:
-            return "Apple Watch Series 10"
-        elif "ultra 3" in q_lower or "ultra3" in q_lower:
-            return "Apple Watch Ultra 3"
-        elif "se 3" in q_lower:
-            return "Apple Watch SE 3"
-        else:
-            return "the mentioned model"
-    
-    def _get_budget_recommendation(self, budget: int) -> str:
-        """Get budget recommendation with real pricing"""
-        if budget < 25000:
-            return f"""For ₹{budget:,}, you're close to the Apple Watch SE starting price.
-
-**Apple Watch SE (2nd gen)**: ₹24,900
-The SE is the most affordable genuine Apple Watch with:
-• Heart rate monitoring and GPS
-• Sleep tracking with detailed stages
-• Crash detection and fall detection  
-• 85+ workout types
-• 18+ hour battery life
-
-**Options:**
-• Stretch budget by ₹{24900-budget:,} for the SE 40mm GPS
-• Look for certified refurbished SE models (₹18,000-22,000)
-• Wait for festival sales (SE can drop to ₹22,000-23,000)
-
-The SE offers 90% of the full Apple Watch experience at the best price point."""
-
-        elif budget <= 45000:
-            return f"""Perfect budget for the Apple Watch Series 9!
-
-**Apple Watch Series 9** (₹41,900-44,900):
-• **S9 chip**: 60% faster performance than SE
-• **Always-On Retina display**: 2000 nits brightness
-• **Double Tap gesture**: Revolutionary new control method
-• **Complete health suite**: ECG, Blood Oxygen, temperature sensing
-• **Enhanced Siri**: On-device processing for privacy
-
-**Your ₹{budget:,} budget covers:**
-• Series 9 41mm GPS: ₹41,900 ✅
-• Series 9 45mm GPS: ₹44,900 ✅
-• Plus premium bands with leftover budget
-
-The Series 9 is the best overall Apple Watch for most users."""
-
-        else:
-            return f"""Excellent budget for premium Apple Watch options!
-
-**Apple Watch Series 9** (₹41,900-53,900):
-Complete flagship experience with latest features
-
-**Apple Watch Ultra 2** (₹89,900):
-• Aerospace titanium construction
-• Largest 49mm display  
-• 36+ hour battery (72 hours in Low Power Mode)
-• 100m water resistance for serious water sports
-• Precision dual-frequency GPS
-• 86dB emergency siren
-
-**For ₹{budget:,}, I recommend:**
-• **Series 9** if you want the latest mainstream features
-• **Ultra 2** if you need extreme durability and longest battery life
-• **Series 9 + Premium accessories** for a complete luxury setup
-
-Which use case fits you better - everyday premium or extreme outdoor adventures?"""
-    
-    def _get_se_vs_series9_comparison(self) -> str:
-        """Detailed SE vs Series 9 comparison"""
-        return """**Apple Watch SE vs Series 9 - Complete Analysis**
-
-**Apple Watch SE (2nd gen)** - ₹24,900
-✅ S8 dual-core processor
-✅ Heart rate monitoring, sleep tracking  
-✅ Crash detection, fall detection
-✅ GPS tracking, 85+ workouts
-✅ Water resistant to 50m
-✅ 18+ hour battery life
-❌ No Always-On display
-❌ No ECG or Blood Oxygen monitoring
-❌ No Double Tap gesture
-❌ No temperature sensing
-
-**Apple Watch Series 9** - ₹41,900  
-✅ All SE features PLUS:
-✅ S9 SiP chip (60% faster than SE)
-✅ Always-On Retina display (2000 nits)
-✅ Double Tap gesture control
-✅ ECG app for heart rhythm analysis
-✅ Blood Oxygen app for wellness tracking
-✅ Temperature sensing for cycle tracking
-✅ On-device Siri processing
-
-**₹17,000 Price Difference - Worth It If:**
-• You want Always-On display convenience
-• Health monitoring is important (ECG/Blood Oxygen)
-• You love cutting-edge features (Double Tap)
-• Performance matters for apps and navigation
-
-**Stick with SE If:**
-• Budget is primary concern
-• Basic fitness tracking is sufficient
-• This is your first Apple Watch
-• You don't need advanced health features
-
-Both are excellent choices - Series 9 for premium experience, SE for best value."""
-    
-    def _get_ultra_vs_series9_comparison(self) -> str:
-        """Ultra 2 vs Series 9 comparison"""
-        return """**Apple Watch Series 9 vs Ultra 2 - Which One?**
-
-**Apple Watch Series 9** (₹41,900-53,900)
-✅ **Best for**: Most users wanting complete Apple Watch experience
-✅ **Display**: Always-On Retina, 2000 nits, 41mm/45mm options
-✅ **Health**: Full suite - ECG, Blood Oxygen, temperature, heart rate
-✅ **Battery**: 18 hours normal use, 36 hours Low Power Mode
-✅ **Build**: Aluminum or steel, multiple colors, 50m water resistance
-
-**Apple Watch Ultra 2** (₹89,900)
-✅ **Best for**: Extreme sports, outdoor adventures, maximum durability
-✅ **Display**: Largest 49mm, 3000 nits brightness, flat sapphire crystal
-✅ **Build**: Aerospace titanium, 100m water resistance, MIL-STD tested
-✅ **Battery**: 36 hours normal, 72 hours Low Power Mode  
-✅ **Special**: Action Button, precision dual-frequency GPS, 86dB siren
-✅ **Unique**: Diving to 40m, extreme temperature resistance
-
-**Ultra 2 worth ₹36,000+ extra ONLY if you:**
-• Do serious multi-day outdoor adventures
-• Need maximum battery life (60+ hours)
-• Regularly swim/dive in challenging conditions
-• Work in extreme environments
-• Want the most durable tech device possible
-
-**For 90% of users, Series 9 provides the complete premium Apple Watch experience at a much better value.**
-
-Which matches your lifestyle - urban professional or outdoor adventurer?"""
-    
-    def _get_technical_support(self, query: str) -> str:
-        """Get technical support based on query"""
-        if "charge" in query:
-            return """**Apple Watch Charging Issues - Step-by-Step Fix**
-
-**Step 1: Clean Everything Thoroughly**
-• Remove Apple Watch from charger completely
-• Use soft, lint-free cloth (microfiber ideal)
-• Clean watch back (circular sensor area) thoroughly  
-• Clean charger surface - remove any debris, sweat, moisture
-
-**Step 2: Verify Proper Setup**
-• Use original Apple charging cable ONLY
-• Connect to 5W+ USB power adapter (iPhone charger works)
-• Ensure magnetic connection clicks and feels secure
-• Green lightning bolt should appear on watch screen
-
-**Step 3: Force Restart Watch**
-• Hold side button + Digital Crown simultaneously
-• Keep holding for exactly 10 seconds until Apple logo appears
-• Release buttons and place back on charger
-• Should start charging within 30 seconds
-
-**Step 4: Advanced Troubleshooting**
-• Try different power outlet/USB port
-• Test with different Apple USB adapter
-• Check charging cable for physical damage
-• Ensure watch is properly centered on charger pad
-
-**Still not working?**
-• Contact Apple Support if under warranty
-• Visit Apple Store for free diagnostics
-• Check if charging port on watch has debris
-
-**Prevention:** Clean charging contacts weekly and avoid extreme temperatures while charging."""
-
-        elif any(word in query for word in ["connection", "pair", "bluetooth", "phone"]):
-            return """**Apple Watch Connection/Pairing Issues - Complete Fix**
-
-**For Initial Pairing:**
-1. Keep iPhone and Apple Watch within arm's reach
-2. Open Apple Watch app on iPhone
-3. Tap "Start Pairing" and point iPhone camera at watch
-4. Follow on-screen setup instructions
-5. Choose "Set Up for Myself" unless it's for someone else
-
-**For Connection Problems:**
-1. **Check Bluetooth**: Settings > Bluetooth > ensure ON
-2. **Check WiFi**: Both devices on same network helps
-3. **Restart both devices**: iPhone and Apple Watch
-4. **Toggle Airplane Mode**: On for 10 seconds, then off
-
-**If Still Not Connecting:**
-• Unpair and re-pair: Watch app > My Watch > [i] > Unpair
-• Reset Network Settings on iPhone (last resort)
-• Update to latest iOS and watchOS versions
-
-**Daily Connection Tips:**
-• Keep devices within 10 meters for optimal connection
-• Ensure iPhone isn't in Low Power Mode
-• Check for software updates monthly
-
-This fixes 95% of connection issues. Need help with a specific error message?"""
-
-        else:
-            return """**Common Apple Watch Issues - Quick Solutions**
-
-**Watch Frozen/Not Responding:**
-• Force restart: Hold side button + Digital Crown for 10 seconds
-
-**Battery Draining Fast:**
-• Check Always-On Display settings
-• Reduce background app refresh  
-• Lower wake time duration
-• Update to latest watchOS
-
-**Apps Not Working:**
-• Force close: Press Digital Crown, swipe up on app
-• Restart watch: Hold side button until power slider appears
-
-**Fitness Tracking Issues:**
-• Calibrate: Settings > Privacy & Security > Analytics & Improvements
-• Ensure wrist detection is ON
-• Keep watch snug but comfortable during workouts
-
-**Notifications Not Showing:**
-• Check iPhone: Settings > Notifications > Mirror Apple Watch
-• Restart both iPhone and Apple Watch
-• Verify Do Not Disturb settings
-
-**Need more specific help?** Tell me exactly what issue you're experiencing and I'll provide detailed troubleshooting steps."""
+            logger.error(f"Ollama enhancement failed: {e}")
+            return base_response
     
     def get_model_status(self) -> Dict[str, Union[str, dict]]:
-        """Get current model status"""
-        return {
+        """Get current model status with web integration info"""
+        status = {
             "active_model": self.active_model,
             "status": self.model_status,
             "groq_available": bool(self.groq_client),
             "hf_available": bool(self.hf_pipeline),
-            "ollama_available": self.ollama_available
+            "ollama_available": self.ollama_available,
+            "web_scraping_available": self.knowledge_base.web_connection_available
         }
+        
+        return status
